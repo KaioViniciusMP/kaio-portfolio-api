@@ -6,7 +6,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  missing-secrets:
+    if: ${{ secrets.VERCEL_TOKEN == '' || secrets.VERCEL_ORG_ID == '' || secrets.VERCEL_PROJECT_ID == '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Explain missing Vercel secrets
+        run: |
+          echo "Skipping Vercel deploy because one or more GitHub secrets are missing."
+          echo "Required secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID"
+
   deploy:
+    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
     runs-on: ubuntu-latest
 
     env:
