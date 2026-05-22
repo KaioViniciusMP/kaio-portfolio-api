@@ -2,7 +2,7 @@
 
 API de certificacoes para o portfolio do Kaio.
 
-Observacao: no formato atual os dados ficam em memoria da funcao serverless. Para persistencia real em producao, conecte um banco (ex.: Neon, Supabase, PlanetScale, MongoDB Atlas).
+Por padrao, roda com fallback em memoria. Em producao no Vercel, ative persistencia real com Upstash Redis (variaveis abaixo).
 
 ## Endpoints
 
@@ -16,6 +16,14 @@ npm install
 npm run dev
 
 API local em http://localhost:3001/api/certifications
+
+## Variaveis de ambiente
+
+- FRONTEND_ORIGIN: dominio do frontend permitido no CORS.
+- UPSTASH_REDIS_REST_URL: URL REST do Upstash Redis (opcional, recomendado em producao).
+- UPSTASH_REDIS_REST_TOKEN: token REST do Upstash Redis (opcional, recomendado em producao).
+
+Se UPSTASH_* nao estiver configurado, a API usa memoria local.
 
 ## Deploy
 

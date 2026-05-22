@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Redis } from "@upstash/redis";
 
 type Certification = {
   id: string;
@@ -42,10 +43,35 @@ const certifications: Certification[] = [
   }
 ];
 
-function setCorsHeaders(response: VercelResponse) {
-  response.setHeader("Access-Control-Allow-Origin", "*");
+const CERTIFICATIONS_KEY = "portfolio:certifications";
+
+const hasRedisCredentials =
+  Boolean(process.env.UPSTASH_REDIS_REST_URL) &&
+  Boolean(process.env.UPSTASH_REDIS_REST_TOKEN);
+
+const redis = hasRedisCredentials ? Redis.fromEnv() : null;
+
+function getAllowedOrigin(request: VercelRequest) {
+  const configuredOrigin = process.env.FRONTEND_ORIGIN;
+
+  if (!configuredOrigin || configuredOrigin === "*") {
+    return "*";
+  }
+
+  const requestOrigin = request.headers.origin;
+
+  if (requestOrigin && requestOrigin === configuredOrigin) {
+    return requestOrigin;
+  }
+
+  return configuredOrigin;
+}
+
+function setCorsHeaders(request: VercelRequest, response: VercelResponse) {
+  response.setHeader("Access-Control-Allow-Origin", getAllowedOrigin(request));
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  response.setHeader("Vary", "Origin");
 }
 
 function parseBody(request: VercelRequest): Record<string, unknown> {
@@ -69,15 +95,40 @@ function isValidCertificationPayload(body: Record<string, unknown>) {
   return required.every((field) => typeof body[field] === "string" && String(body[field]).trim());
 }
 
-export default function handler(request: VercelRequest, response: VercelResponse) {
-  setCorsHeaders(response);
+async function readCertifications() {
+  if (!redis) {
+    return certifications;
+  }
+
+  const current = await redis.get<Certification[]>(CERTIFICATIONS_KEY);
+
+  if (!Array.isArray(current) || current.length === 0) {
+    await redis.set(CERTIFICATIONS_KEY, certifications);
+    return certifications;
+  }
+
+  return current;
+}
+
+async function saveCertifications(next: Certification[]) {
+  if (!redis) {
+    certifications.splice(0, certifications.length, ...next);
+    return;
+  }
+
+  await redis.set(CERTIFICATIONS_KEY, next);
+}
+
+export default async function handler(request: VercelRequest, response: VercelResponse) {
+  setCorsHeaders(request, response);
 
   if (request.method === "OPTIONS") {
     return response.status(204).send("");
   }
 
   if (request.method === "GET") {
-    return response.status(200).json({ certifications });
+    const currentCertifications = await readCertifications();
+    return response.status(200).json({ certifications: currentCertifications });
   }
 
   if (request.method === "POST") {
@@ -98,7 +149,8 @@ export default function handler(request: VercelRequest, response: VercelResponse
       url: body.url ? String(body.url).trim() : undefined
     };
 
-    certifications.unshift(certification);
+    const currentCertifications = await readCertifications();
+    await saveCertifications([certification, ...currentCertifications]);
 
     return response.status(201).json({ certification });
   }
@@ -111,13 +163,15 @@ export default function handler(request: VercelRequest, response: VercelResponse
       return response.status(400).json({ error: "ID invalido." });
     }
 
-    const index = certifications.findIndex((item) => item.id === id);
+    const currentCertifications = await readCertifications();
+    const index = currentCertifications.findIndex((item) => item.id === id);
 
     if (index < 0) {
       return response.status(404).json({ error: "Certificacao nao encontrada." });
     }
 
-    certifications.splice(index, 1);
+    const next = currentCertifications.filter((item) => item.id !== id);
+    await saveCertifications(next);
 
     return response.status(200).json({ deleted: true });
   }
