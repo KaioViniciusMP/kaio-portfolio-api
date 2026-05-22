@@ -1,0 +1,15 @@
+{
+  "name": "kaio-portfolio-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev --listen 3001",
+    "build": "echo \"No build step required for Vercel Functions\"",
+    "lint": "echo \"No lint configured\""
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.3.6",
+    "typescript": "^5.9.3",
+    "vercel": "^48.6.0"
+  }
+}
